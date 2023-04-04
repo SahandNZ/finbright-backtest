@@ -8,7 +8,7 @@ from backtest.model.position import Position
 class PerformanceMeasures:
     def __init__(self, positions: List[Position], initial_capital: int, risk_free_rate: float = 0.04):
         self.positions: List[Position] = positions
-        self.intial_capital = initial_capital
+        self.initial_capital = initial_capital
         self.risk_free_rate = risk_free_rate
 
         self.__recalculated_positions: List[Position] = []

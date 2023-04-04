@@ -62,7 +62,8 @@ class Pair:
                         volume = window.volume.sum()
                         dataframe.loc[len(dataframe)] = [timestamp, datetime, open, high, low, close, volume]
         else:
-            raise Exception("Timestamp of candle is not valid. (market timestamp: {:.0f}, candle timestamp: {})"
+            print(self.__timestamp, candle.timestamp, self.__time_frame)
+            raise Exception("Timestamp of candle is not valid. (market timestamp: {:}, candle timestamp: {})"
                             .format(self.__timestamp, candle.timestamp))
 
     def get_ohlcv_dataframe(self, time_frame: TimeFrame, limit: int) -> pd.DataFrame:
