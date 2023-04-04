@@ -16,5 +16,5 @@ class Candle:
         return [self.timestamp, self.datetime, self.open, self.high, self.low, self.close, self.volume]
 
     @staticmethod
-    def create_instance_from_kafka_schema(ticker):
-        return Candle(ticker.timestamp, ticker.open, ticker.high, ticker.low, ticker.close, ticker.volume)
+    def from_kafka(ticker):
+        return Candle(int(ticker.timestamp), ticker.open, ticker.high, ticker.low, ticker.close, ticker.volume)
