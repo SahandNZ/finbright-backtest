@@ -16,7 +16,7 @@ class Trade:
         self.__event_dict: Dict[int, Event] = events_dict
 
         self.__orders_dict: Dict[int, Order] = {}
-        self.__position = Position(self.__strategy_id, self.__symbol, self.__time_frame, price_precision)
+        self.__position = Position(self.__strategy_id, self.__symbol, self.__time_frame)
         self.__position.price_precision = self.__data.get_price_precision(self.__symbol)
 
     def __handle_position(self, order: Order):
