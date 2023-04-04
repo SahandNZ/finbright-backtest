@@ -12,7 +12,7 @@ class Candle:
         self.volume: float = volume
 
     @property
-    def as_list(self):
+    def to_list(self):
         return [self.timestamp, self.datetime, self.open, self.high, self.low, self.close, self.volume]
 
     @staticmethod
