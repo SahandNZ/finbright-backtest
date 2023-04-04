@@ -11,7 +11,6 @@ class Candle:
         self.close: float = close
         self.volume: float = volume
 
-    @property
     def to_list(self):
         return [self.timestamp, self.datetime, self.open, self.high, self.low, self.close, self.volume]
 
