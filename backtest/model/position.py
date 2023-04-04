@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List
 
-from backtest.model.constant import PositionSide, TimeFrame
+from backtest.model.constant import PositionSide, TimeFrame, OrderSide
 from backtest.model.order import Order
 
 
@@ -17,7 +17,7 @@ class Position:
         return instance
 
     def __init__(self, strategy_id: int, symbol: str, time_frame: int, id: int = None):
-        # unique identirfiers
+        # unique identifiers
         self.__id: int = id if id else uuid.uuid4()
         self.__strategy_id: int = strategy_id
         self.__symbol: str = symbol
