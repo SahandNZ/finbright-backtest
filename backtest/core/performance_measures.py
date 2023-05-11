@@ -1,144 +1,326 @@
-import math
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
+from backtest.model.constant import PositionSide
 from backtest.model.position import Position
+from tabulate import tabulate
 
 
 class PerformanceMeasures:
-    def __init__(self, positions: List[Position], initial_capital: int, risk_free_rate: float = 0.04):
+    def __init__(self, positions: List[Position], initial_capital: int = 1000, fix_quantity: float = None,
+                 fix_equity: float = None, risk_free_rate: float = 0.002, fee_rate: float = 0.0004):
         self.positions: List[Position] = positions
-        self.initial_capital = initial_capital
-        self.risk_free_rate = risk_free_rate
 
-        self.__recalculated_positions: List[Position] = []
-        for position in positions:
-            position.
+        self.initial_capital: int = initial_capital
+        self.fix_quantity: float = fix_quantity
+        self.fix_equity: float = fix_equity
 
-    def positions(self) -> List[Position]:
-        pass
+        self.risk_free_rate: float = risk_free_rate
+        self.fee_rate: float = fee_rate
+
+        self.assign_quantity()
+
+    def assign_quantity(self):
+        if self.fix_quantity is not None:
+            for position in self.positions:
+                position.set_quantity(self.fix_quantity)
+
+        elif self.fix_equity is not None:
+            for position in self.positions:
+                position.set_equity(self.fix_equity)
+
+        else:
+            raise ValueError("Either fix_quantity or fix_equity must be not None.")
+
+    def value2tuple(self, value: float) -> Tuple[float, float]:
+        return round(value, 2), round((value / self.initial_capital) * 100, 2)
+
+    @property
+    def bars(self) -> np.array:
+        return np.array([position.bars for position in self.positions])
+
+    @property
+    def days(self) -> float:
+        return round(self.bars.sum() * self.positions[0].time_frame / (24 * 60 * 60), 2)
+
+    @property
+    def sides(self) -> np.array:
+        return np.array([position.side for position in self.positions])
 
     @property
     def profits(self) -> np.array:
-        return np.array([position.pnl for position in self.positions])
+        return np.array([position.profit for position in self.positions])
 
     @property
-    def profits_percentage(self) -> np.array:
-        return np.array([position.pnl for position in self.positions])
+    def longs(self) -> np.array:
+        return self.profits[PositionSide.LONG == self.sides]
 
     @property
-    def net_profit(self) -> float:
-        return round(self.profits.sum(), 2)
+    def shorts(self) -> np.array:
+        return self.profits[PositionSide.SHORT == self.sides]
 
     @property
-    def net_profit_percentage(self) -> float:
-        return round(self.profits.sum(), 2)
+    def profits_percentage(self):
+        return np.array([position.profit_percentage for position in self.positions])
 
     @property
-    def total_trades(self) -> float:
-        return len(self.__strategy.positions_history)
+    def net_profit(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+        all_tuple = self.value2tuple(self.profits.sum())
+        long_tuple = self.value2tuple(self.longs.sum())
+        short_tuple = self.value2tuple(self.shorts.sum())
+
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def wining_trades(self) -> float:
-        return (0 <= self.profits).sum()
+    def gross_profit(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+        all_tuple = self.value2tuple(self.profits[0 < self.profits].sum())
+        long_tuple = self.value2tuple(self.longs[0 < self.longs].sum())
+        short_tuple = self.value2tuple(self.shorts[0 < self.shorts].sum())
+
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def losing_trades(self) -> float:
-        return (self.profits < 0).sum()
+    def gross_loss(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+        all_tuple = self.value2tuple(np.abs(self.profits[self.profits < 0].sum()))
+        long_tuple = self.value2tuple(np.abs(self.longs[self.longs < 0].sum()))
+        short_tuple = self.value2tuple(np.abs(self.shorts[self.shorts < 0].sum()))
+
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def wining_ratio(self) -> float:
-        return round(self.wining_trades / self.total_trades, 4)
+    def maximum_run_up(self) -> Tuple[float, float]:
+        equity, minimum_equity, maximum_run_up = self.initial_capital, self.initial_capital, 0
+        for position in self.positions:
+            run_up = round(equity - minimum_equity + position.run_up, 2)
+            maximum_run_up = max(maximum_run_up, run_up)
+
+            equity += position.profit
+            minimum_equity = min(minimum_equity, equity)
+
+        run_up_tuple = self.value2tuple(maximum_run_up)
+        return run_up_tuple
 
     @property
-    def gross_profits(self) -> float:
-        return round(self.profits[0 < self.profits].sum(), 2)
+    def maximum_drawdown(self) -> Tuple[float, float, int]:
+        equity, maximum_equity, maximum_equity_timestamp = self.initial_capital, 0, 0
+        maximum_drawdown, maximum_drawdown_duration = 0, 0
+        for position in self.positions:
+            drawdown = round(maximum_equity - equity - position.drawdown, 2)
+            maximum_drawdown = max(maximum_drawdown, drawdown)
+            drawdown_duration = int((position.exit_timestamp - maximum_equity_timestamp) / position.time_frame)
+            maximum_drawdown_duration = max(maximum_drawdown_duration, drawdown_duration)
+
+            equity = round(equity + position.profit, 2)
+            maximum_equity = max(maximum_equity, equity)
+            if equity == maximum_equity:
+                maximum_equity_timestamp = position.entry_timestamp
+
+        drawdown_tuple = self.value2tuple(maximum_drawdown)
+        return *drawdown_tuple, maximum_drawdown_duration
 
     @property
-    def gross_losses(self) -> float:
-        return round(self.profits[self.profits < 0].sum(), 2)
+    def buy_and_hold_return(self) -> Tuple[float, float]:
+        profit = round((self.positions[-1].exit_price / self.positions[0].entry_price - 1) * self.initial_capital, 2)
+        return self.value2tuple(profit)
 
     @property
-    def profit_factor(self) -> float:
-        return round(self.gross_profits / abs(self.gross_losses), 2)
+    def sharpe_ratio(self) -> float:
+        daily_risk_free_rate = self.risk_free_rate / 365 * self.days
+        daily_profit = self.profits.sum() / self.days
+        numerator = daily_profit - daily_risk_free_rate
+        denominator = self.profits.std()
+        return round(numerator / denominator * np.sqrt(365), 4)
 
     @property
-    def average_profit(self) -> float:
-        return round(self.net_profit / self.total_trades, 2)
+    def sortino_ratio(self) -> float:
+        daily_risk_free_rate = self.risk_free_rate / 365 * self.days
+        daily_profit = self.profits.sum() / self.days
+        numerator = daily_profit - daily_risk_free_rate
+        denominator = self.profits[self.profits <= 0].std()
+        return round(numerator / denominator * np.sqrt(365), 4)
 
     @property
-    def average_profit_ratio(self) -> float:
-        return round(self.net_profit_ratio / self.total_trades, 4)
+    def profit_factor(self) -> Tuple[float, float, float]:
+        gross_profit = self.gross_profit
+        gross_loss = self.gross_loss
+
+        all = round(gross_profit[0][0] / gross_loss[0][0], 3)
+        long = round(gross_profit[1][0] / gross_loss[1][0], 3)
+        short = round(gross_profit[2][0] / gross_loss[2][0], 3)
+        return all, long, short
+
+    def commission_paid(self) -> Tuple[float, float, float]:
+        pass
 
     @property
-    def average_bars_in_trade(self) -> float:
-        interval = self.__strategy.interval
-        bars = np.array([(p.close_timestamp - p.open_timestamp) / interval for p in self.__strategy.positions_history])
-        return round(bars.mean(), 2)
+    def total_closed_trades(self) -> Tuple[int, int, int]:
+        all = len(self.profits)
+        long = len(self.longs)
+        short = len(self.shorts)
+        return all, long, short
 
     @property
-    def total_traded_quantity(self) -> float:
-        quantity_precision = self.__strategy.data.get_quantity_precision(self.__strategy.symbol)
-        total_traded_qty = sum([abs(position.traded_quantity) for position in self.__strategy.positions_history])
-        return round(total_traded_qty, quantity_precision)
+    def number_wining_trades(self) -> Tuple[int, int, int]:
+        all = (0 < self.profits).sum()
+        long = (0 < self.longs).sum()
+        short = (0 < self.shorts).sum()
+        return all, long, short
 
     @property
-    def total_paid_fee(self) -> float:
-        return round(sum([position.total_paid_fee for position in self.__strategy.positions_history]), 2)
+    def number_losing_trades(self) -> Tuple[int, int, int]:
+        all = (self.profits < 0).sum()
+        long = (self.longs < 0).sum()
+        short = (self.shorts < 0).sum()
+        return all, long, short
 
     @property
-    def sharp_ratio(self) -> float:
-        first_timestamp = self.__strategy.positions_history[0].open_timestamp
-        last_timestamp = self.__strategy.positions_history[-1].close_timestamp
-        timestamp_dif = last_timestamp - first_timestamp
-        years = round(timestamp_dif / Interval.DAY1 / 365, 4)
-        risk_free_rate = self.__risk_free_rate * years / len(self.__strategy.positions_history)
-        sharpe_ratio = (self.profit_ratios - risk_free_rate).mean() / self.profit_ratios.std() * math.sqrt(years * 365)
-        return round(sharpe_ratio, 2)
+    def wining_ratio(self) -> Tuple[float, float, float]:
+        total_closed_trades = self.total_closed_trades
+        number_wining_trades = self.number_wining_trades
+
+        all = round(number_wining_trades[0] / total_closed_trades[0] * 100, 2)
+        long = round(number_wining_trades[1] / total_closed_trades[1] * 100, 2)
+        short = round(number_wining_trades[2] / total_closed_trades[2] * 100, 2)
+        return all, long, short
 
     @property
-    def maximum_draw_down(self) -> float:
-        draw_downs_array = np.array([position.draw_down for position in self.__strategy.positions_history])
-        return round(np.max(draw_downs_array), 2)
+    def average_trade(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+        all_tuple = self.value2tuple(self.profits.mean())
+        long_tuple = self.value2tuple(self.longs.mean())
+        short_tuple = self.value2tuple(self.shorts.mean())
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def maximum_draw_down_ratio(self) -> float:
-        draw_down_ratios_array = np.array([position.draw_down_ratio for position in self.__strategy.positions_history])
-        return round(np.max(draw_down_ratios_array), 4)
+    def average_wining_trade(self):
+        all_tuple = self.value2tuple(self.profits[0 < self.profits].mean())
+        long_tuple = self.value2tuple(self.longs[0 < self.longs].mean())
+        short_tuple = self.value2tuple(self.shorts[0 < self.shorts].mean())
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def maximum_run_up(self) -> float:
-        run_up_array = np.array([position.run_up for position in self.__strategy.positions_history])
-        return round(np.max(run_up_array), 2)
+    def average_losing_trade(self):
+        all_tuple = self.value2tuple(np.abs(self.profits[self.profits < 0].mean()))
+        long_tuple = self.value2tuple(np.abs(self.longs[self.longs < 0].mean()))
+        short_tuple = self.value2tuple(np.abs(self.shorts[self.shorts < 0].mean()))
+        return all_tuple, long_tuple, short_tuple
 
     @property
-    def maximum_run_up_ratio(self) -> float:
-        run_up_ratio_array = np.array([position.run_up_ratio for position in self.__strategy.positions_history])
-        return round(np.max(run_up_ratio_array), 4)
+    def ratio_average_win_average_loss(self):
+        avg_win = self.average_wining_trade
+        avg_loss = self.average_losing_trade
 
-    def print(self):
-        log = "Performance Measures" \
-              "\n\t- {:^30}: {:^10} ({:^7}%)" \
-              "\n\t- {:^30}: {:^10}                (win: {} / loss: {})" \
-              "\n\t- {:^30}: {:^10}                (win: {} / total: {})" \
-              "\n\t- {:^30}: {:^10}                (gross profit: {} / gross loss: {})" \
-              "\n\t- {:^30}: {:^10} ({:^7}%)     (net profit: {} / total: {})" \
-              "\n\t- {:^30}: {:^10} (Interval: {})" \
-              "\n\t- {:^30}: {:^10}" \
-              "\n\t- {:^30}: {:^10}" \
-              "\n\t- {:^30}: {:^10}" \
-              "\n\t- {:^30}: {:^10} {:^10}%" \
-              "\n\t- {:^30}: {:^10} {:^10}%" \
-            .format("Net profit", self.net_profit, self.net_profit_ratio,
-                    "Total trades", self.total_trades, self.wining_trades, self.losing_trades,
-                    "Wining ratio", self.wining_ratio, self.wining_trades, self.total_trades,
-                    "Profit factor", self.profit_factor, self.gross_profits, self.gross_losses,
-                    "Avg profit", self.average_profit, self.average_profit_ratio, self.net_profit, self.total_trades,
-                    "Avg # bars", self.average_bars_in_trade, Interval.get_str(self.__strategy.interval),
-                    "Total traded Quantity", self.total_traded_quantity,
-                    "Total paid fee", self.total_paid_fee,
-                    "Sharpe Ratio", self.sharp_ratio,
-                    "Maximum Draw Down", self.maximum_draw_down, self.maximum_draw_down_ratio,
-                    "Maximum Run Up", self.maximum_run_up, self.maximum_run_up_ratio)
+        all = round(avg_win[0][0] / avg_loss[0][0], 3)
+        long = round(avg_win[1][0] / avg_loss[1][0], 3)
+        short = round(avg_win[2][0] / avg_loss[2][0], 3)
 
-        print(log)
+        return all, long, short
+
+    @property
+    def largest_wining_trade(self):
+        all_tuple = self.value2tuple(self.profits[0 < self.profits].max())
+        long_tuple = self.value2tuple(self.longs[0 < self.longs].max())
+        short_tuple = self.value2tuple(self.shorts[0 < self.shorts].max())
+        return all_tuple, long_tuple, short_tuple
+
+    @property
+    def largest_losing_trade(self):
+        all_tuple = self.value2tuple(np.abs(self.profits[self.profits < 0].min()))
+        long_tuple = self.value2tuple(np.abs(self.longs[self.longs < 0].min()))
+        short_tuple = self.value2tuple(np.abs(self.shorts[self.shorts < 0].min()))
+        return all_tuple, long_tuple, short_tuple
+
+    @property
+    def average_bar_in_trade(self):
+        all = round(self.bars.mean())
+        long = round(self.bars[PositionSide.LONG == self.sides].mean())
+        short = round(self.bars[PositionSide.SHORT == self.sides].mean())
+
+        return all, long, short
+
+    @property
+    def average_bar_in_wining_trade(self):
+        all = round(self.bars.mean())
+        long = round(self.bars[(PositionSide.LONG == self.sides) & (0 < self.profits)].mean())
+        short = round(self.bars[(PositionSide.SHORT == self.sides) & (0 < self.profits)].mean())
+
+        return all, long, short
+
+    @property
+    def average_bar_in_losing_trade(self):
+        all = round(self.bars.mean())
+        long = round(self.bars[(PositionSide.LONG == self.sides) & (self.profits < 0)].mean())
+        short = round(self.bars[(PositionSide.SHORT == self.sides) & (self.profits < 0)].mean())
+
+        return all, long, short
+
+    def tabulate(self):
+        headers = ["Measure", "All", "Long", "Short"]
+        values = [
+            ["Net Profit", *[i[0] for i in self.net_profit]],
+            [None, *[i[1] for i in self.net_profit]],
+            [None, None, None, None],
+
+            ["Gross Profit", *[i[0] for i in self.gross_profit]],
+            [None, *[i[1] for i in self.gross_profit]],
+            [None, None, None, None],
+
+            ["Gross Loss", *[i[0] for i in self.gross_loss]],
+            [None, *[i[1] for i in self.gross_loss]],
+            [None, None, None, None],
+
+            ["Max Run-up", self.maximum_run_up[0], None, None],
+            [None, self.maximum_run_up[1], None, None],
+            [None, None, None, None],
+
+            ["Max Drawdown", self.maximum_drawdown[0], None, None],
+            [None, self.maximum_drawdown[1], None, None],
+            [None, None, None, None],
+
+            ["Buy & Hold Return", self.buy_and_hold_return[0], None, None],
+            [None, self.buy_and_hold_return[1], None, None],
+            [None, None, None, None],
+
+            ["Sharpe Ratio", self.sharpe_ratio, None, None],
+            ["Sortino Ratio", self.sortino_ratio, None, None],
+            [None, None, None, None],
+
+            ["Profit Factor", *self.profit_factor],
+            [None, None, None, None],
+
+            ["Total Closed Trades", *self.total_closed_trades],
+            ["Number Wining Trades", *self.number_wining_trades],
+            ["Number Wining Trades", *self.number_losing_trades],
+            [None, None, None, None],
+
+            ["Percent Profitable", *self.wining_ratio],
+            [None, None, None, None],
+
+            ["Avg Trade", *[i[0] for i in self.average_trade]],
+            [None, *[i[1] for i in self.average_trade]],
+            [None, None, None, None],
+
+            ["Avg Wining Trade", *[i[0] for i in self.average_wining_trade]],
+            ["Avg Wining Trade %", *[i[1] for i in self.average_wining_trade]],
+            [None, None, None, None],
+
+            ["Avg Lossing Trade", *[i[0] for i in self.average_losing_trade]],
+            ["Avg Lossing Trade %", *[i[1] for i in self.average_losing_trade]],
+            [None, None, None, None],
+
+            ["Ratio Avg Win / Avg Loss", *self.ratio_average_win_average_loss],
+            [None, None, None, None],
+
+            ["Largest Wining Trade", *[i[0] for i in self.largest_wining_trade]],
+            ["Largest Wining Trade %", *[i[1] for i in self.largest_wining_trade]],
+            [None, None, None, None],
+
+            ["Largest Lossing Trade", *[i[0] for i in self.largest_losing_trade]],
+            ["Largest Lossing Trade %", *[i[1] for i in self.largest_losing_trade]],
+            [None, None, None, None],
+
+            ["Average # Bars in Trades", *self.average_bar_in_trade],
+            ["Average # Bars in Wining Trades", *self.average_bar_in_wining_trade],
+            ["Average # Bars in Lossing Trades", *self.average_bar_in_losing_trade],
+        ]
+        table = tabulate(values, headers=headers, tablefmt="pretty")
+        print(table)

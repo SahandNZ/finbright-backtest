@@ -18,6 +18,7 @@ class Trade:
         self.__orders_dict: Dict[int, Order] = {}
         self.__position = Position(self.__strategy_id, self.__symbol, self.__time_frame)
         self.__position.price_precision = self.__data.get_price_precision(self.__symbol)
+        self.__position.quantity_precision = self.__data.get_quantity_precision(self.__symbol)
 
     def __handle_position(self, order: Order):
         if order.reduce_only:
@@ -28,6 +29,7 @@ class Trade:
 
                 self.__position = Position(self.__strategy_id, self.__symbol, self.__time_frame)
                 self.__position.price_precision = self.__data.get_price_precision(self.__symbol)
+                self.__position.quantity_precision = self.__data.get_quantity_precision(self.__symbol)
         else:
             self.__position.entry_orders.append(order)
             if 1 == len(self.__position.entry_orders):
