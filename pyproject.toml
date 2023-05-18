@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "finbright-backtest"
-version = "0.0.1"
+version = "0.0.17"
 authors = [
   { name="Sahand Nazarzadeh", email="sahand.nazarzadeh@gmail.com" },
 ]

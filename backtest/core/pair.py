@@ -47,7 +47,7 @@ class Pair:
         self.__timestamp += self.__time_frame
         self.__last_candle = candle
         if 0 == candle.timestamp % self.__time_frame:
-            self.__source_ohlcv_dataframe.loc[len(self.__source_ohlcv_dataframe)] = candle.as_list
+            self.__source_ohlcv_dataframe.loc[len(self.__source_ohlcv_dataframe)] = candle.to_list
             for time_frame, dataframe in self.__data_ohlcv_dataframes_dict.items():
                 step = time_frame // self.__time_frame
                 if 0 == (candle.timestamp + self.__time_frame) % time_frame:
