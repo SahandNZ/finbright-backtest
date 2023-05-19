@@ -15,6 +15,7 @@ class Strategy(ABC):
         # configs
         self.__id: int = None
         self.__name: str = None
+        self.__category: str = None
         self.__symbols: List[str] = None
         self.__time_frames: List[TimeFrame] = None
 
@@ -29,6 +30,7 @@ class Strategy(ABC):
     def load_configuration(self, conf_dict: Dict, data: Data, events_dict: Dict[int, Event]):
         self.__id: int = conf_dict['id']
         self.__name: str = conf_dict['name']
+        self.__category: str = conf_dict['category']
         self.__symbols: List[str] = conf_dict['symbols']
         self.__time_frames: List[TimeFrame] = conf_dict['time-frames']
 
@@ -67,6 +69,10 @@ class Strategy(ABC):
     @property
     def symbol(self) -> str:
         return self.__symbol
+
+    @property
+    def category(self) -> str:
+        return self.__category
 
     @property
     def time_frame(self) -> TimeFrame:
