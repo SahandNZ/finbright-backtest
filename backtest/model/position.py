@@ -70,7 +70,7 @@ class Position:
         self.__drawdown_percentage: float = drawdown_percentage
 
     def set_quantity(self, quantity: float):
-        self.equity = round(self.entry_price * self.quantity, 2)
+        self.equity = round(self.entry_price * quantity, 2)
         self.set_equity(self.equity)
 
     def set_equity(self, equity: float):
