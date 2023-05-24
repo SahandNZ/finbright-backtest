@@ -14,7 +14,7 @@ class Position:
         instance = Position(position.strategy_id, position.symbol, position.time_frame, id=position.id)
         instance.set_properties(position.side, position.entry_timestamp, position.entry_percentage,
                                 position.entry_price, position.exit_timestamp, position.exit_price,
-                                position.profit_percenrage, position.run_up, position.drawdown, position.bars)
+                                position.profit_percenrage, position.run_up, position.drawdown)
         return instance
 
     def __init__(self, strategy_id: int, symbol: str, time_frame: int, id: int = None):
@@ -56,7 +56,7 @@ class Position:
 
     def set_properties(self, side: OrderSide, entry_timestamp: int, entry_percentage: int, entry_price: float,
                        exit_timestamp: int, exit_price: float, profit_percentage: float, run_up_percentage: float,
-                       drawdown_percentage: float, bars: int):
+                       drawdown_percentage: float):
         self.__side: OrderSide = side
         self.__entry_timestamp: int = entry_timestamp
         self.__entry_datetime: datetime = datetime.fromtimestamp(entry_timestamp)
@@ -68,7 +68,6 @@ class Position:
         self.__profit_percentage: float = profit_percentage
         self.__run_up_percentage: float = run_up_percentage
         self.__drawdown_percentage: float = drawdown_percentage
-        self.__bars: int = bars
 
     def set_quantity(self, quantity: float):
         self.equity = round(self.entry_price * self.quantity, 2)
@@ -173,7 +172,9 @@ class Position:
 
     @property
     def bars(self) -> int:
-        return int((self.exit_timestamp - self.entry_timestamp) / self.time_frame)
+        if self.__bars:
+            self.__bars = int((self.exit_timestamp - self.entry_timestamp) / self.time_frame)
+        return self.__bars
 
     def to_list(self):
         return [self.entry_datetime, self.exit_datetime, self.symbol, self.time_frame, self.side, self.entry_price,
